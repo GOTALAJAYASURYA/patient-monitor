@@ -8,7 +8,7 @@ app = Flask(__name__)
 init_db()
 
 # Global variable to hold the current active patient name on the machine
-current_patient_name = "Shanmukh"
+current_patient = "No Patient Admitted"
 
 @app.route('/')
 def home():
