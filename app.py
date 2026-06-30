@@ -5,6 +5,7 @@ from database import init_db, save_vitals
 from ai_model import predict_patient_status
 
 app = Flask(__name__)
+app.add_url_rule('/logo.jpeg', endpoint='logo', build_only=False, view_func=lambda: app.send_static_file('../logo.jpeg'))
 init_db()
 
 # Global variable to hold the current active patient name on the machine
