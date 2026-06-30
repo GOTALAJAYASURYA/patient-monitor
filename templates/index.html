@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Smart Patient Monitor</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #111; color: #fff; text-align: center; padding: 20px; }
+        .admin-panel { background: #222; border: 1px solid #444; padding: 15px; display: inline-block; border-radius: 8px; margin-bottom: 20px; }
+        input { padding: 8px; border-radius: 4px; border: 1px solid #555; background: #333; color: #fff; font-size: 16px; }
+        button { padding: 8px 15px; border-radius: 4px; border: none; background: #00ff00; color: #000; font-weight: bold; font-size: 16px; cursor: pointer; }
+        button:hover { background: #00cc00; }
+        
+        .monitor-box { border: 4px solid #333; display: inline-block; padding: 30px; border-radius: 15px; background: #222; min-width: 360px; margin-bottom: 30px; }
+        .vitals { font-size: 24px; margin: 15px 0; font-weight: bold; text-align: left; padding-left: 20px; }
+        .suggestion-box { margin-top: 20px; padding: 15px; border-radius: 8px; background: #333; text-align: left; font-size: 16px; border-left: 5px solid #00ff00; }
+        
+        .state-normal { color: #00ff00; }   
+        .state-warning { color: #ffcc00; }  
+        .state-critical { color: #ff3333; } 
+        
+        table { margin: 0 auto; width: 85%; max-width: 650px; border-collapse: collapse; background: #222; }
+        th, td { border: 1px solid #444; padding: 10px; text-align: center; }
+        th { background-color: #333; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <h1>PULSE AI Patient Monitor</h1>
+    
+    <div class="admin-panel">
+        <label for="patient-name-input">Admit New Patient: </label>
+        <input type="text" id="patient-name-input" placeholder="Enter patient name...">
+        <button onclick="admitPatient()">Update Monitor</button>
+    </div>
+    <br>
+    
+    <div class="monitor-box">
+        <h2>Patient Name: <span id="patient-display">--</span></h2>
+        <hr>
+        <div class="vitals">Temperature: <span id="temp-val">--</span> °F</div>
+        <div class="vitals">Pulse: <span id="pulse-val">--</span> BPM</div>
+        <div class="vitals">SpO₂: <span id="spo2-val">--</span> %</div>
+        <h3 style="text-align: left; padding-left: 20px;">AI Status: <span id="status-val">--</span></h3>
+        
+        <div id="ai-suggest-container" class="suggestion-box">
+            <strong>AI Recommendation:</strong> <span id="suggestion-val">Loading clinician suggestions...</span>
+        </div>
+    </div>
+
+    <h2>Recent Patient History Log</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Temp (°F)</th>
+                <th>Pulse (BPM)</th>
+                <th>SpO₂ (%)</th>
+                <th>AI Verdict</th>
+            </tr>
+        </thead>
+        <tbody id="history-rows"></tbody>
+    </table>
+
+    <script>
+        // NEW FUNCTION: Sends the newly typed name to the backend server
+        async function admitPatient() {
+            const nameInput = document.getElementById('patient-name-input').value;
+            if (!nameInput.trim()) {
+                alert("Please type a valid name.");
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/update_patient', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: nameInput })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('patient-display').innerText = result.current_patient;
+                    document.getElementById('patient-name-input').value = ""; // Clear input box
+                }
+            } catch (error) {
+                console.error("Error updating patient name:", error);
+            }
+        }
+
+        function getColorClass(status) {
+            if (status === "WARNING") return "state-warning";
+            if (status === "CRITICAL") return "state-critical";
+            return "state-normal";
+        }
+
+        function updateSuggestionBorder(status) {
+            const box = document.getElementById('ai-suggest-container');
+            if (status === "WARNING") box.style.borderColor = "#ffcc00";
+            else if (status === "CRITICAL") box.style.borderColor = "#ff3333";
+            else box.style.borderColor = "#00ff00";
+        }
+
+        async function fetchNewVitals() {
+            try {
+                const response = await fetch('/api/vitals');
+                const data = await response.json();
+
+                // Dynamically update the patient name text block
+                document.getElementById('patient-display').innerText = data.patient_name;
+
+                document.getElementById('temp-val').innerText = data.temperature;
+                document.getElementById('pulse-val').innerText = data.pulse;
+                document.getElementById('spo2-val').innerText = data.spo2;
+                
+                const statusElement = document.getElementById('status-val');
+                statusElement.innerText = data.status;
+                statusElement.className = getColorClass(data.status);
+                
+                document.getElementById('suggestion-val').innerText = data.suggestion;
+                updateSuggestionBorder(data.status);
+                
+                fetchHistory();
+            } catch (error) {
+                console.error("Error fetching vitals:", error);
+            }
+        }
+
+        async function fetchHistory() {
+            try {
+                const response = await fetch('/api/history');
+                const historyData = await response.json();
+                const tableBody = document.getElementById('history-rows');
+                tableBody.innerHTML = "";
+                
+                historyData.forEach(row => {
+                    const colorClass = getColorClass(row.status);
+                    const htmlRow = `<tr>
+                        <td>${row.timestamp}</td>
+                        <td>${row.temperature}</td>
+                        <td>${row.pulse}</td>
+                        <td>${row.spo2}%</td>
+                        <td class="${colorClass}" style="font-weight:bold;">${row.status}</td>
+                    </tr>`;
+                    tableBody.innerHTML += htmlRow;
+                });
+            } catch (error) {
+                console.error("Error fetching history:", error);
+            }
+        }
+
+        fetchNewVitals();
+        setInterval(fetchNewVitals, 10000);
+    </script>
+
+</body>
+</html>
